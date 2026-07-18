@@ -1,1 +1,10 @@
 websockets>=12.0
+fastapi
+uvicorn
+pyserial
+pydantic
+duckdb
+numpy
+pandas
+scikit-learn
+onnxruntime
