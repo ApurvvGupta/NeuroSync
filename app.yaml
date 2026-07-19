@@ -1,0 +1,9 @@
+name: NeuroSync
+description: "Edge AI industrial risk intelligence - vibration, temperature, gas and corrosion monitoring with live WebSocket dashboard (Snapdragon Multiverse Hackathon)"
+icon: ⚙️
+version: "1.0.0"
+# WebSocket port for dashboard.html (app runs in a container - port must be exposed)
+ports:
+  - 8765
+# No pre-built Bricks used
+bricks: []

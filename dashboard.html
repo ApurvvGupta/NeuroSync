@@ -1,0 +1,135 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>NeuroSync — AI Command Center</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.js"></script>
+<style>
+  :root { --navy:#0B1F3A; --teal:#0F6E56; --amber:#B77800; --red:#C62828; --bg:#F4F4F1; }
+  * { box-sizing:border-box; margin:0; font-family:'Segoe UI',system-ui,sans-serif; }
+  body { background:var(--bg); color:#222; padding:16px; max-width:900px; margin:auto; }
+  header { display:flex; justify-content:space-between; align-items:center; margin-bottom:14px; }
+  h1 { font-size:20px; color:var(--navy); }
+  .conn { font-size:12px; padding:4px 10px; border-radius:12px; background:#E9E7DF; }
+  .conn.on { background:#DDF2E9; color:var(--teal); }
+  .connect-bar { display:flex; gap:8px; margin-bottom:14px; }
+  .connect-bar input { flex:1; padding:9px 12px; border:1px solid #ccc; border-radius:8px; font-size:14px; }
+  .connect-bar button { padding:9px 16px; border:0; border-radius:8px; background:var(--navy); color:#fff; font-size:14px; cursor:pointer; }
+  #alertBanner { display:none; padding:14px 16px; border-radius:10px; background:#8C1F1F; color:#fff;
+                 font-weight:600; margin-bottom:14px; animation:pulse 1.2s infinite; }
+  @keyframes pulse { 50% { opacity:0.75; } }
+  .risk { background:#fff; border-radius:12px; padding:14px 16px; margin-bottom:14px; border:1px solid #E2E0D8; }
+  .risk-top { display:flex; justify-content:space-between; margin-bottom:8px; }
+  .risk-val { font-size:26px; font-weight:700; }
+  .bar { height:12px; border-radius:8px; background:#ECEAE2; overflow:hidden; }
+  .bar > div { height:100%; width:5%; background:var(--teal); transition:width .4s, background .4s; }
+  .grid { display:grid; grid-template-columns:repeat(auto-fit,minmax(180px,1fr)); gap:12px; margin-bottom:14px; }
+  .card { background:#fff; border-radius:12px; padding:14px; border:1px solid #E2E0D8; }
+  .card h3 { font-size:12px; color:#777; font-weight:600; text-transform:uppercase; letter-spacing:.4px; }
+  .card .v { font-size:26px; font-weight:700; margin:6px 0 4px; }
+  .card .u { font-size:13px; color:#999; font-weight:400; }
+  .badge { display:inline-block; font-size:11px; font-weight:700; padding:3px 10px; border-radius:10px; }
+  .normal   { background:#DDF2E9; color:var(--teal); }
+  .warning  { background:#FBEED3; color:var(--amber); }
+  .critical { background:#FBDDDD; color:var(--red); }
+  .chartbox { background:#fff; border-radius:12px; padding:14px; border:1px solid #E2E0D8; height:220px; }
+  footer { text-align:center; font-size:11px; color:#999; margin-top:14px; }
+</style>
+</head>
+<body>
+<header>
+  <h1>⬢ NeuroSync — AI Command Center</h1>
+  <span class="conn" id="conn">disconnected</span>
+</header>
+
+<div class="connect-bar">
+  <input id="wsurl" value="ws://192.168.1.50:8765" placeholder="ws://UNO-Q-IP:8765">
+  <button onclick="connect()">Connect</button>
+</div>
+
+<div id="alertBanner"></div>
+
+<div class="risk">
+  <div class="risk-top">
+    <div><strong>PUMP-01</strong> · Asset Risk Index</div>
+    <div class="risk-val" id="riskVal">--</div>
+  </div>
+  <div class="bar"><div id="riskBar"></div></div>
+</div>
+
+<div class="grid">
+  <div class="card"><h3>Vibration</h3><div class="v"><span id="vib">--</span> <span class="u">RMS</span></div><span class="badge normal" id="vibS">normal</span></div>
+  <div class="card"><h3>Temperature</h3><div class="v"><span id="temp">--</span> <span class="u">°C</span></div><span class="badge normal" id="tempS">normal</span></div>
+  <div class="card"><h3>Gas (MQ2)</h3><div class="v"><span id="gas">--</span> <span class="u">raw</span></div><span class="badge normal" id="gasS">normal</span></div>
+  <div class="card"><h3>Corrosion</h3><div class="v"><span id="corr">--</span> <span class="u">index</span></div><span class="badge normal" id="corrS">normal</span></div>
+</div>
+
+<div class="chartbox"><canvas id="chart"></canvas></div>
+<footer>NeuroSync · Snapdragon Multiverse Hackathon 2026 · edge AI, no cloud required</footer>
+
+<script>
+let ws = null, chart = null;
+const hist = { labels: [], vib: [], risk: [] };
+
+function initChart() {
+  chart = new Chart(document.getElementById('chart'), {
+    type: 'line',
+    data: { labels: hist.labels, datasets: [
+      { label: 'Vibration RMS', data: hist.vib, borderColor: '#0F6E56', borderWidth: 2, pointRadius: 0, tension: .35, yAxisID: 'y' },
+      { label: 'Risk Index', data: hist.risk, borderColor: '#C62828', borderWidth: 2, pointRadius: 0, tension: .35, yAxisID: 'y2' }
+    ]},
+    options: { responsive: true, maintainAspectRatio: false, animation: false,
+      scales: { y: { min: 0, suggestedMax: 4, title: { display:true, text:'RMS' } },
+                y2:{ min: 0, max: 100, position:'right', grid:{ drawOnChartArea:false }, title:{ display:true, text:'Risk' } },
+                x: { ticks: { display:false } } },
+      plugins: { legend: { labels: { boxWidth: 12 } } } }
+  });
+}
+
+function setBadge(id, status) {
+  const el = document.getElementById(id);
+  el.textContent = status;
+  el.className = 'badge ' + status;
+}
+
+function update(d) {
+  document.getElementById('vib').textContent  = (d.vibration_rms ?? 0).toFixed(2);
+  document.getElementById('temp').textContent = (d.temperature ?? 0).toFixed(1);
+  document.getElementById('gas').textContent  = d.gas_warm === false ? 'warm-up…' : Math.round(d.gas_mq2 ?? 0);
+  document.getElementById('corr').textContent = (d.corrosion ?? 0).toFixed(2);
+  setBadge('vibS',  d.vib_status  || 'normal');
+  setBadge('tempS', d.temp_status || 'normal');
+  setBadge('gasS',  d.gas_warm === false ? 'warning' : (d.gas_status || 'normal'));
+  setBadge('corrS', d.corr_status || 'normal');
+
+  const risk = d.risk_index ?? 0;
+  document.getElementById('riskVal').textContent = risk;
+  const bar = document.getElementById('riskBar');
+  bar.style.width = Math.max(risk, 4) + '%';
+  bar.style.background = risk >= 75 ? '#C62828' : risk >= 50 ? '#E09B00' : '#0F6E56';
+
+  const banner = document.getElementById('alertBanner');
+  if (d.alert) { banner.style.display = 'block'; banner.textContent = '⚠ ' + d.alert; }
+  else banner.style.display = 'none';
+
+  hist.labels.push(''); hist.vib.push(d.vibration_rms ?? 0); hist.risk.push(risk);
+  if (hist.labels.length > 120) { hist.labels.shift(); hist.vib.shift(); hist.risk.shift(); }
+  chart.update('none');
+}
+
+function connect() {
+  if (ws) ws.close();
+  const url = document.getElementById('wsurl').value.trim();
+  ws = new WebSocket(url);
+  const conn = document.getElementById('conn');
+  ws.onopen  = () => { conn.textContent = 'LIVE'; conn.className = 'conn on'; };
+  ws.onclose = () => { conn.textContent = 'disconnected'; conn.className = 'conn';
+                       setTimeout(connect, 3000); };  // auto-reconnect
+  ws.onmessage = e => { try { update(JSON.parse(e.data)); } catch (_) {} };
+}
+
+initChart();
+</script>
+</body>
+</html>
