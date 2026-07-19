@@ -1,0 +1,7 @@
+websockets
+scikit-learn
+joblib
+numpy
+onnxruntime
+skl2onnx
+protobuf
